@@ -1671,6 +1671,700 @@ func main() {
 
 ![image-20220502095819368](assets/image-20220502095819368.png)
 
+> 如果要使得排序稳定，要使用sort.SliceStable()函数
+
+## 标准库strings包
+
+使用条件：
+
+1. 引入"strings"包
+2. 使用`strings.函数名()`调用包中的函数
+
+### EqualFold
+
+```go
+func EqualFold(s, t string) bool
+```
+
+> 判断两个字符串是否相同
+
+示例：
+
+```go
+ans := strings.EqualFold("zhangsan", "Zhangsan")
+fmt.Println(ans)
+ans = strings.EqualFold("LISI-123", "list-123 ")
+fmt.Println(ans)
+```
+
+![image-20220503154200632](assets/image-20220503154200632.png)
+
+### TrimSpace
+
+```go
+func TrimSpace(s string) string
+```
+
+> 去除字符串前后空白字符
+
+示例：
+
+```go
+str := "                  Zhang              San               "
+fmt.Printf("原字符串: \"%s\"\n", str)
+str = strings.TrimSpace(str)
+fmt.Printf("去除前后空格之后的字符串: \"%s\"\n", str)
+```
+
+![image-20220503154717325](assets/image-20220503154717325.png)
+
+### HasPrefix
+
+```go
+func HasPrefix(s, prefix string) bool
+```
+
+> 判断字符串s是否是以prefix串为前缀
+
+示例：
+
+```go
+str = "Hello World"
+ans = strings.HasPrefix(str, "Hello")
+fmt.Println(ans)
+ans = strings.HasPrefix(str, "World")
+fmt.Println(ans)
+```
+
+![image-20220503155117896](assets/image-20220503155117896.png)
+
+### HasSuffix
+
+```go
+func HasSuffix(s, suffix string) bool
+```
+
+> 判断字符串s是否以suffix串为后缀
+
+示例：
+
+```go
+str = "Zhang San"
+ans = strings.HasSuffix(str, "san")
+fmt.Println(ans)
+ans = strings.HasSuffix(str, "San")
+fmt.Println(ans)
+```
+
+![image-20220503155414099](assets/image-20220503155414099.png)
+
+### Index
+
+```go
+func Index(s, substr string) int
+```
+
+> 计算字符串s中首次出现子串substr的索引，没有出现则返回-1
+
+示例：
+
+```go
+str = "Do you like sugar? Do you like cat?"
+idx := strings.Index(str, "like")
+fmt.Println(idx)
+idx = strings.Index(str, "dog")
+fmt.Println(idx)
+```
+
+![image-20220503155923932](assets/image-20220503155923932.png)
+
+### LastIndex
+
+```go
+func LastIndex(s, substr string) int
+```
+
+> 计算字符串s中最后一次出现子串substr的索引，没有出现则返回-1
+
+示例：
+
+```go
+str = "Do you like sugar? Do you like cat?"
+idx = strings.LastIndex(str, "like")
+fmt.Println(idx)
+idx = strings.LastIndex(str, "dog")
+fmt.Println(idx)
+```
+
+![image-20220503160247538](assets/image-20220503160247538.png)
+
+### IndexAny
+
+```go
+func IndexAny(s, chars string) int
+```
+
+> 对于chars中的任意一个字符，如果字符串s中存在，则返回第一个匹配的字符索引，没有匹配的就返回-1
+
+示例：
+
+```go
+str = "Ambitious"
+idx = strings.IndexAny(str, "hello")
+fmt.Println(idx)
+idx = strings.IndexAny(str, "iti")
+fmt.Println(idx)
+```
+
+![image-20220503161700172](assets/image-20220503161700172.png)
+
+### IndexByte
+
+```go
+func IndexByte(s string, c byte) int
+```
+
+> 返回字符c在字符串s中第一个匹配的索引，没有匹配的就返回-1
+
+示例：
+
+```go
+str = "Unbelievable"
+idx = strings.IndexByte(str, 'e')
+fmt.Println(idx)
+idx = strings.IndexByte(str, 'b')
+fmt.Println(idx)
+```
+
+![image-20220503170945063](assets/image-20220503170945063.png)
+
+### Replace
+
+```go
+func Replace(s, old, new string, n int) string
+```
+
+> 将字符串s中n个old子串替换成new字符串，如果n是负数则表示全部替换
+
+示例：
+
+```go
+str = "Hello sarah do oh do"
+fmt.Println(strings.Replace(str, "o", "aaa", 1))
+fmt.Println(strings.Replace(str, "o", "aaa", -1))
+```
+
+![image-20220503171500676](assets/image-20220503171500676.png)
+
+### Title（已弃用）
+
+```go
+func Title(s string) string
+```
+
+> 将字符串中的每个单词首字母都改成大写
+
+示例：
+
+```go
+str = "when your talent can't support your ambition"
+fmt.Println(strings.Title(str))
+```
+
+![image-20220503171916853](assets/image-20220503171916853.png)
+
+### ToTitle
+
+```go
+func ToTitle(s string) string
+```
+
+> 将字符串中所有字母都转换成大写的，在部分Unicode字符的处理上与ToUpper稍微有点不同，但是影响不大
+
+示例：
+
+```go
+str = "when your talent can't support your ambition"
+fmt.Println(strings.ToTitle(str))
+```
+
+![image-20220503172212566](assets/image-20220503172212566.png)
+
+### ToLower
+
+```go
+func ToLower(s string) string
+```
+
+> 将字符串中所有的字符转换成小写的
+
+示例：
+
+```go
+str = "Hello World!"
+fmt.Println(strings.ToLower(str))
+```
+
+![image-20220503172437533](assets/image-20220503172437533.png)
+
+### ToUpper
+
+```go
+func ToUpper(s string) string
+```
+
+> 将字符串中所有的字符转换成大写的
+
+示例：
+
+```go
+str = "when your talent can't support your ambition"
+fmt.Println(strings.ToUpper(str))
+```
+
+![image-20220503172614101](assets/image-20220503172614101.png)
+
+### Contains
+
+```go
+func Contains(s, substr string) bool
+```
+
+> 判断字符串s中是否包含有子串substr
+
+示例：
+
+```go
+str = "I am ambitious!"
+fmt.Println(strings.Contains(str, "ambitious"))
+```
+
+![image-20220503172835608](assets/image-20220503172835608.png)
+
+### ContainsAny
+
+```go
+func ContainsAny(s, chars string) bool
+```
+
+> 判断字符串s中是否含有chars中的任意字符
+
+示例：
+
+```go
+str = "You should calm down and learn!"
+fmt.Println(strings.ContainsAny(str, "abc"))
+```
+
+![image-20220503173106147](assets/image-20220503173106147.png)
+
+### IndexRune
+
+```go
+func IndexRune(s string, r rune) int
+```
+
+> 返回字符串中第一个匹配Unicode中值为r的字符的索引
+>
+> 如果匹配不到，返回-1
+>
+> 如果r == utf8.RuneError，则返回第一个不是utf8编码的字符
+
+示例：
+
+```go
+str = "Ambitious哈哈哈"
+fmt.Println(strings.IndexRune(str, 'i'))
+fmt.Println(strings.IndexRune(str, utf8.RuneError))
+```
+
+![image-20220503182002349](assets/image-20220503182002349.png)
+
+### Count
+
+```go
+func Count(s, substr string) int
+```
+
+> 返回字符串s中有多少个不重复的substr子串
+>
+> 如果substr未空字符串""，则返回字符串s中Unicode字符个数 + 1
+
+示例：
+
+```go
+str = "Ambitious"
+fmt.Println(strings.Count(str, "i"))
+fmt.Println(strings.Count(str, ""))
+```
+
+![image-20220503182415490](assets/image-20220503182415490.png)
+
+### Repeat
+
+```go
+func Repeat(s string, count int) string
+```
+
+> 将字符串s重复拷贝count次，并返回
+>
+> - count为负数时，报错并退出程序
+> - 当拷贝出来的字符串长度溢出时，报错并退出程序
+
+示例：
+
+```go
+str = "Ambitious"
+fmt.Println(strings.Repeat(str, 3))
+fmt.Println(strings.Repeat(str, -1))
+fmt.Println(strings.Repeat(str, 999999999999999))
+```
+
+![image-20220503183507564](assets/image-20220503183507564.png)
+
+![image-20220503183529644](assets/image-20220503183529644.png)
+
+### Trim
+
+```go
+func Trim(s, cutset string) string
+```
+
+> 去除字符串s前后的子串cutset
+
+示例：
+
+```go
+str = "00000000000000000000000Zhang00000000000San0000000000000"
+fmt.Printf("原字符串: \"%s\"\n", str)
+str = strings.Trim(str, "0")
+fmt.Printf("去除前后字符之后的字符串: \"%s\"\n", str)
+```
+
+![image-20220503190731498](assets/image-20220503190731498.png)
+
+### TrimLeft
+
+```go
+func TrimLeft(s, cutset string) string
+```
+
+> 去除字符串s前边的子串cutset
+
+示例：
+
+```go
+str = "00000000000000000000000Zhang00000000000San0000000000000"
+fmt.Printf("原字符串: \"%s\"\n", str)
+str = strings.TrimLeft(str, "0")
+fmt.Printf("去除前边字符之后的字符串: \"%s\"\n", str)
+```
+
+![image-20220503190947240](assets/image-20220503190947240.png)
+
+### TrimRight
+
+```go
+func TrimRight(s, cutset string) string
+```
+
+> 去除字符串s后边的子串cutset
+
+示例：
+
+```go
+str = "00000000000000000000000Zhang00000000000San0000000000000"
+fmt.Printf("原字符串: \"%s\"\n", str)
+str = strings.TrimRight(str, "0")
+fmt.Printf("去除后边边字符之后的字符串: \"%s\"\n", str)
+```
+
+![image-20220503191238702](assets/image-20220503191238702.png)
+
+### TrimPrefix
+
+```go
+func TrimPrefix(s, prefix string) string
+```
+
+> 去除字符串s中以prefix作为前缀的子串
+>
+> 如果s不是以prefix作为前缀的，则s原封不动返回
+
+示例：
+
+```go
+str = "When your ability can't realize your dream"
+fmt.Println(strings.TrimPrefix(str, "When"))
+fmt.Println(strings.TrimPrefix(str, "hen"))
+```
+
+![image-20220503191613131](assets/image-20220503191613131.png)
+
+### Fields
+
+```go
+func Fields(s string) []string
+```
+
+> 以空格为分隔符，将字符串s中的每个单词都分割成一个切片
+
+示例：
+
+```go
+str = "You should practise with all your heart"
+fmt.Println(strings.Fields(str))
+```
+
+![image-20220503193133235](assets/image-20220503193133235.png)
+
+### FieldsFunc
+
+```go
+func FieldsFunc(s string, f func(rune) bool) []string
+```
+
+> 将字符串s分割成若干个切片，分割规则在函数`f()`中指定
+
+示例：
+
+```go
+str = "Nice to meet you.2Are you ok?"
+fmt.Println(strings.FieldsFunc(str, func(c rune) bool {
+    return unicode.IsDigit(c)
+}))
+```
+
+![image-20220503193944167](assets/image-20220503193944167.png)
+
+### ContainsRune
+
+```go
+func ContainsRune(s string, r rune) bool
+```
+
+> 判断字符串s中是否含有Unicode字符r
+
+示例：
+
+```go
+str = "Ambitious"
+fmt.Println(strings.ContainsRune(str, 'A'))
+fmt.Println(strings.ContainsRune(str, 'z'))
+```
+
+![image-20220503194313575](assets/image-20220503194313575.png)
+
+### Split
+
+```go
+func Split(s, sep string) []string
+```
+
+> 将字符串s按照给定子串sep进行分割，
+>
+> 功能类似于strings.FieldsFunc()
+
+示例：
+
+```go
+str = "I am coding now, please go out."
+fmt.Println(strings.Split(str, ","))
+```
+
+![image-20220503194641888](assets/image-20220503194641888.png)
+
+### Join
+
+```go
+func Join(elems []string, sep string) string
+```
+
+> 用分隔串sep将切片elems中的元素连接起来
+
+示例：
+
+```go
+slice := []string{"I", "am", "ambitious."}
+fmt.Println(strings.Join(slice, " "))
+```
+
+![image-20220503194939141](assets/image-20220503194939141.png)
+
+### SplitN
+
+```go
+func SplitN(s, sep string, n int) []string
+```
+
+> 将字符串s按照分隔串sep分割成n个切片
+>
+> n < 0时，该函数等同于strings.Split()函数
+
+示例：
+
+```go
+str = "a,b,c,d,e,f"
+fmt.Println(strings.SplitN(str, ",", 3))
+fmt.Println(strings.SplitN(str, ",", -1))
+```
+
+![image-20220503195409388](assets/image-20220503195409388.png)
+
+### SplitAfter
+
+```go
+func SplitAfter(s, sep string) []string
+```
+
+> 这个函数与Split的区别是，它在分割字符串之后会保留分隔串，分隔串放在两段切片中第一片的末尾
+
+示例：
+
+```go
+str = "a,b,c,d"
+fmt.Println(strings.SplitAfter(str, ","))
+fmt.Println(strings.SplitAfter(str, "b"))
+```
+
+![image-20220503200115119](assets/image-20220503200115119.png)
+
+### SplitAfterN
+
+```go
+func SplitAfterN(s, sep string, n int) []string
+```
+
+> 这个函数的功能是保留分隔符作字符串分割，
+>
+> n表示要分割成多少个切片
+>
+> n<0时这个函数与strings.SplitAfter()函数相同
+
+示例：
+
+```go
+str = "a,b,c,d,b,s"
+fmt.Println(strings.SplitAfterN(str, "b", 2))
+fmt.Println(strings.SplitAfterN(str, "b", -1))
+```
+
+![image-20220503200440740](assets/image-20220503200440740.png)
+
+### Cut
+
+```go
+func Cut(s, sep string) (before, after string, found bool)
+```
+
+> 从字符串s中找到第一个匹配的sep，并将字符串s分割成两个切片，按顺序返回两个切片，并返回是否成功匹配分隔符
+
+示例：
+
+```go
+str = "127.0.0.1:8080"
+ip, port, ok := strings.Cut(str, ":")
+fmt.Printf("ip: %s\nport: %s\nfound: %t\n", ip, port, ok)
+ip, port, ok = strings.Cut(str, ",")
+fmt.Printf("ip: %s\nport: %s\nfound: %t\n", ip, port, ok)
+```
+
+![image-20220503201318405](assets/image-20220503201318405.png)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
