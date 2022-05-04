@@ -2271,6 +2271,45 @@ fmt.Printf("ip: %s\nport: %s\nfound: %t\n", ip, port, ok)
 
 ![image-20220503201318405](assets/image-20220503201318405.png)
 
+## 产生随机数（rand包）
+
+同C语言一样，Go语言要产生随机数之前需要先添加随机数种子，否则每次产生的随机数都是一样的，添加种子格式：
+
+- 需要引入rand包和time包
+
+```go
+rand.Seed(time.Now().UnixNano())
+```
+
+产生一个范围在`[0, x)`的随机整型数：
+
+```go
+rand.Intn(x)
+```
+
+示例：
+
+```go
+func main() {
+	n := 200
+	arr := []int{}
+	// 添加随机数种子
+	rand.Seed(time.Now().UnixNano())
+	for i := 1; i <= 10; i++ {
+		arr = append(arr, rand.Intn(n))
+	}
+	fmt.Println(arr)
+}
+```
+
+运行两次产生的随机数序列不同：
+
+![image-20220504122004021](assets/image-20220504122004021.png)
+
+
+
+
+
 
 
 

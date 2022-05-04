@@ -233,7 +233,7 @@ func main() {
 	str = "127.0.0.1:8080"
 	ip, port, ok := strings.Cut(str, ":")
 	fmt.Printf("ip: %s\nport: %s\nfound: %t\n", ip, port, ok)
-	ip, port, ok = strings.Cut(str, ",")
+	ip, port, ok = strings.Cut(str, "m")
 	fmt.Printf("ip: %s\nport: %s\nfound: %t\n", ip, port, ok)
 
 	fmt.Println("==============Cut↑==============")
