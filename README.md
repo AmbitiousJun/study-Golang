@@ -2306,6 +2306,125 @@ func main() {
 
 ![image-20220504122004021](assets/image-20220504122004021.png)
 
+## 使用heap库自定义堆实现
+
+使用heap库之前，首先要实现其定义的五个函数，分别是：
+
+```go
+type Interface interface {
+    // 堆的大小，通常返回的是切片的长度
+    Len() int
+    // 比较器，函数返回值为true时表示切片中i索引的元素比较“小”
+	Less(i, j int) bool
+    // 交换i和j两个坐标的元素
+	Swap(i, j int)
+    // 将元素x加入到堆中
+	Push(x any)
+    // 弹出堆顶元素
+	Pop() any
+}
+```
+
+一个大根堆的实现示例：
+
+```go
+type bHp struct{ sort.IntSlice }
+
+func (hp bHp) Less(i, j int) bool { return hp.IntSlice[i] > hp.IntSlice[j] }
+
+func (hp bHp) Peek() interface{} {
+	a := hp.IntSlice
+	return a[0]
+}
+
+func (hp *bHp) Push(x interface{}) {
+	hp.IntSlice = append(hp.IntSlice, x.(int))
+}
+
+func (hp *bHp) Pop() interface{} {
+	a := hp.IntSlice
+	x := a[len(a)-1]
+	hp.IntSlice = a[:len(a)-1]
+	return x
+}
+```
+
+**注意事项：**
+
+1. `sort.IntSlice`是golang标准库sort下定义的一个类型，它实现了上述提到的接口函数的前三个，分别是`Len()`、`Less()`、`Swap()`
+2. 结构体bHp直接使用sort.IntSlice类型作为值，可以将它默认实现的三个函数添加到bHp中（一般情况下，不需要再自己再去实现一次了）
+3. heap库实现的是小根堆，但是可以由我们自己去定义何为“小”。这里要实现的是一个大根堆，所以我们需要重写`Less()`函数：只要`i`索引下的元素值比`j`索引下的元素值要大，就说明`i`元素在堆中更“小”。
+
+**对自定义的堆进行操作**
+
+使用heap库已经定义好的函数，将实例化好的自定义堆的指针传进去即可。
+
+```go
+// 实例化自定义堆
+pq := &bHp{}
+// 插入值
+heap.Push(pq, 8)
+heap.Push(pq, 9)
+// 获取堆顶元素但不删除
+fmt.Printf("当前堆顶元素为：%d\n", pq.Peek())
+heap.Push(pq, 7)
+heap.Push(pq, 10)
+heap.Push(pq, 5)
+heap.Push(pq, 7)
+// 获取堆的大小
+fmt.Printf("当前堆大小为：%d\n", pq.Len())
+// 将所有的元素弹出
+for pq.Len() > 0 {
+    fmt.Println(heap.Pop(pq))
+}
+```
+
+![image-20220505185058394](assets/image-20220505185058394.png)
+
+**为什么自定义的bHp结构没有实现Len函数却能直接调用？**
+
+这个问题在上文已经提到过，bHp结构体直接使用sort.IntSlice类型作为成员，就拥有了sort.IntSlice中实现的所有函数，可以直接调用。
+
+**Pop函数的实现中为什么取的是切片中最后一个值？**
+
+首先我们要知道，在heap库内部维护堆这个结构时，堆顶（（即堆中“最小”的元素））是处于切片的**第一个元素**的
+
+其次，我们在实际调用的时候不是直接`bhp.Pop()`这样调的，而是调用`heap.Pop(bhp)`，这就意味着Pop操作的时候程序不仅仅走了我们自定义的这段逻辑。查看`heap.Pop()`函数源码：
+
+```go
+// Pop removes and returns the minimum element (according to Less) from the heap.
+// The complexity is O(log n) where n = h.Len().
+// Pop is equivalent to Remove(h, 0).
+func Pop(h Interface) any {
+	n := h.Len() - 1
+	h.Swap(0, n)
+	down(h, 0, n)
+	return h.Pop()
+}
+```
+
+可以看到，在Pop函数源码中调用我们自定义的Pop函数之前，还进行了以下操作：
+
+- 将底层切片的第一个元素（堆顶）与最后一个元素进行交换
+- 对切片的第一个元素做“heapify”（元素下沉）操作
+
+> heapify操作指的是将指定的元素不断与其子结点进行比较，如果它的值比子结点要“大”，则两数交换，直到指定元素到达正确的位置为止。
+
+所以，在调用我们自己实现的Pop函数之前，原堆顶元素就已经被交换到底层切片的末尾了，这时我们取切片的最后一个元素就是堆顶。
+
+**对Peek操作的一些解释：**
+
+1. heap库并没有定义一个Peek函数，所以这里肯定是不能使用heap.Peek()这种写法的
+2. 自定义的Peek函数，直接返回底层切片的第一个元素值。这个其实上一问理解了的话就很清楚了，因为堆顶元素本来就处在底层切片的第一位
+
+**实现接口函数的时候，结构体参数定义为什么有的用指针有的不用？**
+
+在Golang中，如果将结构体直接作为函数参数进行传递的话，它是属于**值传递**的，也就是说程序会将原本的结构体拷贝一份再传到函数里面。
+
+如果用的是值传递的方式，而且在函数内部中对这个结构体进行修改了，外部是不可见的，因为这根本就是两个不同的实例。
+
+总结一下就是，如果在函数中需要对结构体内部的值进行修改，那么一定要使用引用传递（也就是参数使用指针的形式），例如上面自定义大根堆中实现的`Push`和`Pop`函数，它们都需要去修改堆的底层数组。而如果只是对结构体中的值进行访问而已，那么可以进行值传递，例如`Less`和`Peek`函数。
+
 
 
 
