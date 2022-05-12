@@ -36,6 +36,14 @@ TODO 切片 ✔
 
 使用sort.Slice函数实现排序
 
+
+
+**2022/5/12**
+
+通过b站视频进一步学习
+
+https://www.bilibili.com/video/BV1zR4y1t7Wj?spm_id_from=333.788.top_right_bar_window_custom_collection.content.click
+
 ## 环境安装（Windows）
 
 1. 下载Go语言安装包（msi）
@@ -687,6 +695,28 @@ continue：跳过当前循环剩余的语句，并进行下一轮循环
 
 goto：将控制转移到标记语句（goto语句会降低程序的可读性，一般不建议使用）
 
+## defer语句
+
+被defer关键字修饰的语句会被延迟到函数体结束前执行，具体效果相当于将每一个被defer声明的语句都存入栈中，函数返回之前再将这些语句拿出来调用。**也就是说，先被defer修饰的语句是后执行的！**
+
+示例：
+
+```go
+func main() {
+	fmt.Println("start....")
+	defer fmt.Println("s1")
+	defer fmt.Println("s2")
+	defer fmt.Println("s3")
+	fmt.Println("end....")
+}
+```
+
+![image-20220512163913437](assets/image-20220512163913437.png)
+
+
+
+
+
 ## 函数
 
 Go语言中函数定义格式如下：
@@ -762,6 +792,76 @@ func swapInt(a, b *int) {
 ```
 
 ![image-20220430174910163](assets/image-20220430174910163.png)
+
+### 闭包
+
+闭包实际上就是“函数内部定义函数”，与普通函数的区别是：
+
+- 内部函数可以直接使用外部函数的变量
+- 只要内部函数的生命周期存在，外部函数的变量就不会丢失
+
+示例：
+
+1. 给字符串添加后缀名：
+
+```go
+// 示例1：后缀函数生成器
+// 给定一个文件后缀suffix，返回一个后缀生成函数
+// 只需要传入一个字符串，就可以在字符串后面在拼接上给定的后缀
+func MakeSuffixFunc(suffix string) func(string) string {
+	return func(base string) string {
+		if !strings.HasSuffix(base, suffix) {
+			base += suffix
+		}
+		return base
+	}
+}
+
+func main() {
+	// 示例1
+	jpgSuffix := MakeSuffixFunc(".jpg")
+	fmt.Println(jpgSuffix("test"))
+	txtSuffix := MakeSuffixFunc(".txt")
+	fmt.Println(txtSuffix("abc"))
+}
+```
+
+![image-20220512161955245](assets/image-20220512161955245.png)
+
+2. 计数器：
+
+```go
+// 示例2：计数器
+// 传入一个base值，每次参数计数器的运算
+// 返回两个函数:
+// add: 返回base + 形参
+// sub: 返回base - 形参
+func Cal(base int) (add func(int) int, sub func(int) int) {
+	add = func(a int) int {
+		return base + a
+	}
+	sub = func(a int) int {
+		return base - a
+	}
+	return
+}
+
+func main() {
+	// 示例2
+	af, sf := Cal(100)
+	fmt.Println(af(30), sf(50))
+	fmt.Println(af(40), sf(60))
+	af, sf = Cal(100)
+	fmt.Println(af(3), sf(4))
+	fmt.Println(af(5), sf(6))
+}
+```
+
+![image-20220512163119271](assets/image-20220512163119271.png)
+
+
+
+
 
 ## 变量作用域（与Java相同）
 
