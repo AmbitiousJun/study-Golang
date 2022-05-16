@@ -2525,6 +2525,431 @@ func Pop(h Interface) any {
 
 总结一下就是，如果在函数中需要对结构体内部的值进行修改，那么一定要使用引用传递（也就是参数使用指针的形式），例如上面自定义大根堆中实现的`Push`和`Pop`函数，它们都需要去修改堆的底层数组。而如果只是对结构体中的值进行访问而已，那么可以进行值传递，例如`Less`和`Peek`函数。
 
+## 标准库os包
+
+
+
+### Create
+
+```go
+func Create(name string) (*File, error)
+```
+
+> 在目录name下创建一个新文件，默认可读可写，并且所有用户可以访问
+>
+> 返回值：
+>
+> *File：创建出来的文件指针
+>
+> error：创建错误时不为nil（很多库函数都会返回error接口，功能都是一致的，以下文档中将不再赘述）
+
+示例：
+
+```go
+// CreateFile 在当前目录下创建一个名为fileName的文件
+func CreateFile(fileName string) {
+	_, err := os.Create(fileName)
+	check(err)
+}
+```
+
+### MkDir
+
+```go
+func Mkdir(name string, perm FileMode) error
+```
+
+> 创建一个目录
+>
+> name：目录名称
+>
+> perm：目录的可使用权限，使用os.ModePerm表示所有人可访问
+
+示例：
+
+```go
+// MakeDir 创建一个目录
+func MakeDir(path string) {
+	err := os.Mkdir(path, os.ModePerm)
+	check(err)
+}
+```
+
+### MkDirAll
+
+```go
+func MkdirAll(path string, perm FileMode) error
+```
+
+> 将path沿途的文件夹都创建出来
+>
+> name：目录名称
+
+示例：
+
+```go
+// 将path沿途的文件夹都创建出来
+func MakeDirAll(path string) {
+	err := os.MkdirAll(path, os.ModePerm)
+	check(err)
+}
+func main() {
+	MakeDirAll("./22-os/a/b/c")
+}
+```
+
+![image-20220515153741141](assets/image-20220515153741141.png)
+
+### Remove & RemoveAll
+
+删除文件夹和删除路径下的所有文件夹，与上述相同
+
+```go
+// 删除文件夹
+func RemoveDir(path string) {
+	err := os.Remove(path)
+	check(err)
+}
+
+// 将path沿途的文件夹都删除
+func RemoveDirAll(path string) {
+	err := os.RemoveAll(path)
+	check(err)
+}
+```
+
+### GetWd
+
+```go
+func Getwd() (dir string, err error)
+```
+
+> 获取当前的工作目录
+
+```go
+// 获取当前的工作目录
+func GetWd() {
+	dir, err := os.Getwd()
+	check(err)
+	fmt.Println(dir)
+}
+```
+
+### Chdir
+
+```go
+func Chdir(dir string) error
+```
+
+> 修改当前的工作目录
+
+### Rename
+
+```go
+func Rename(oldpath, newpath string) error
+```
+
+> 修改文件名称
+
+### ReadFile
+
+```go
+func ReadFile(name string) ([]byte, error)
+```
+
+> 读取文件
+
+示例：
+
+```go
+// 读取文件
+func ReadFile() {
+	b, err := os.ReadFile("./22-os/test.txt")
+	check(err)
+	fmt.Println(string(b))
+}
+```
+
+### WriteFile
+
+```go
+func WriteFile(name string, data []byte, perm FileMode) error
+```
+
+> 将字节切片的数据写入到文件中（会覆盖掉文件的旧数据）
+
+示例：
+
+```go
+// 写入文件
+func WriteFile() {
+	str := "Hello World!"
+	err := os.WriteFile("./22-os/test.txt", []byte(str), os.ModePerm)
+	check(err)
+}
+```
+
+## 操作MySQL数据库
+
+1. 准备数据库
+
+![image-20220515171448288](assets/image-20220515171448288.png)
+
+2. 在模块中引入mysql驱动包
+
+```sh
+go get github.com/go-sql-driver/mysql
+```
+
+![image-20220515171923142](assets/image-20220515171923142.png)
+
+3. 初始化数据库连接
+
+```go
+package main
+
+import (
+	"database/sql"
+	"fmt"
+	"log"
+	_ "github.com/go-sql-driver/mysql"
+)
+
+var db *sql.DB
+
+// 初始化数据库连接
+func initDb() error {
+	str := "root:cyj070723@tcp(localhost:3306)/go_db?charset=utf8mb4"
+	if conn, err := sql.Open("mysql", str); err == nil {
+		db = conn
+	} else {
+		log.Fatal(err)
+	}
+	// 最大连接时长
+	db.SetConnMaxLifetime(time.Minute * 3)
+	// 最大连接数
+	db.SetMaxOpenConns(10)
+	// 空闲连接数
+	db.SetMaxIdleConns(10)
+	return db.Ping()
+}
+
+func main() {
+	err := initDb()
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println("成功连接数据库")
+}
+```
+
+![image-20220515175231297](assets/image-20220515175231297.png)
+
+注意：
+
+1. 虽然初始化连接的时候没有显示使用到上一步导入的mysql驱动，但是仍然需要导包，且为驱动包取别名"_"，才能成功通过编译。
+
+2. 连接字符串
+
+   ```go
+   "用户名:密码@tcp(ip:端口号)/数据库名[?连接参数]"
+   ```
+
+3. sql.Open函数不会检查数据库能否正常连接，需要调用db.Ping方法检查
+
+```go
+package main
+
+import (
+	"database/sql"
+	"fmt"
+	"log"
+	_ "github.com/go-sql-driver/mysql"
+)
+
+var db *sql.DB
+
+// 初始化数据库连接
+func initDb() error {
+	str := "root:cyj070723@tcp(localhost:3306)/go_db?charset=utf8mb4"
+	db, err := sql.Open("mysql", str)
+	if err != nil {
+		return err
+	}
+	// 最大连接时长
+	db.SetConnMaxLifetime(time.Minute * 3)
+	// 最大连接数
+	db.SetMaxOpenConns(10)
+	// 空闲连接数
+	db.SetMaxIdleConns(10)
+	return db.Ping()
+}
+
+func main() {
+	err := initDb()
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println("成功连接数据库")
+}
+```
+
+### 查询单行数据
+
+1. 编写sql，在需要传递参数的地方使用`?`符占位
+
+2. 定义user类型，包含id、username、password三个字段
+
+3. 在查询之前实例化一个user类型的实例
+
+4. 使用之前初始化好的db对象（*sql.DB），调用queryRow()方法
+
+   > queryRow()方法接收n个参数
+   >
+   > 第一个占位符是sql语句，
+   >
+   > 之后的n-1字符是用于填充sql中占位符的参数
+
+5. 调用queryRow方法的同时，使用链式编程调用Scan方法，将查询出来的数据保存到实例化好的user实例中
+
+   > 传递参数时，需要传入每个属性的引用
+   >
+   > （如果本次查询出现了错误，会在Scan方法调用之后返回）
+
+```go
+type user struct {
+	id int
+	username string
+	password string
+}
+
+func queryRow(id int) *user {
+	u := user{}
+	// sql语句，参数使用占位符
+	sql := "select id, username, password from user_tbl where id = ?"
+	// 调用QueryRow的时候，并不会有任何的报错信息
+	// 报错信息会延迟到Scan方法被调用才返回
+	err := db.QueryRow(sql, id).Scan(&u.id, &u.username, &u.password)
+	if err != nil {
+		log.Fatal(err)
+	}
+	return &u
+}
+```
+
+![image-20220515213018738](assets/image-20220515213018738.png)
+
+### 查询多行数据
+
+1. 编写sql
+2. 调用db.Query方法，传入sql和占位参数，得到rows
+3. 延迟关闭数据库连接（重要）
+4. 使用rows.Next方法判断是否还有记录可读
+5. 使用rows.Scan方法读取一行记录，读取方式与查询当行数据相同
+
+```go
+// 查询多行数据
+func queryRows(id int) []user {
+	users := []user{}
+	sql := "select * from user_tbl where id > ?"
+	if r, err := db.Query(sql, id); err == nil {
+		// 延迟关闭数据库连接
+		defer r.Close()
+		for r.Next() {
+			var u user
+			err = r.Scan(&u.id, &u.username, &u.password)
+			if err != nil {
+				log.Fatal(err)
+			}
+			users = append(users, u)
+		}
+	} else {
+		log.Fatal(err)
+	}
+	return users
+}
+```
+
+![image-20220516095037043](assets/image-20220516095037043.png)
+
+### 插入数据
+
+1. 编写sql
+2. 使用db.Exec方法进行插入，传入sql和占位参数，得到results
+3. 可以通过results获取插入用户的id
+
+```go
+// 插入一个用户，插入成功则返回插入之后用户的id
+func insertOne(u *user) int64 {
+	if u == nil {
+		log.Fatal(errors.New("user pointer is nil"))
+	}
+	sql := "insert into user_tbl values(null, ?, ?)"
+	r, err := db.Exec(sql, u.username, u.password)
+	check(err)
+	i, err := r.LastInsertId()
+	check(err)
+	return i
+}
+```
+
+![image-20220516100131820](assets/image-20220516100131820.png)
+
+### 修改、删除数据
+
+步骤与插入基本一致
+
+results对象除了可以获取插入用户的id之外，还能获取sql执行之后影响的行数rows，可以以此来判断修改（删除）是否成功
+
+```go
+// 更新用户信息
+func updateOne(u *user) bool {
+	if u == nil {
+		log.Fatal(errors.New("user pointer is nil"))
+	}
+	sql := "update user_tbl set username = ?, password = ? where id = ?"
+	r, err := db.Exec(sql, u.username, u.password, u.id)
+	check(err)
+	i, err := r.RowsAffected()
+	check(err)
+	return i == 1
+}
+
+// 删除用户信息
+func deleteOne(id int) bool {
+	sql := "delete from user_tbl where id = ?"
+	r, err := db.Exec(sql, id)
+	check(err)
+	i, err := r.RowsAffected()
+	check(err)
+	return i == 1
+}
+```
+
+![image-20220516101546575](assets/image-20220516101546575.png)
+
+## 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
