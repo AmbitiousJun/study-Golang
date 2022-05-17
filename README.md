@@ -2928,7 +2928,924 @@ func deleteOne(id int) bool {
 
 ![image-20220516101546575](assets/image-20220516101546575.png)
 
-## 
+## ORM框架 —— GORM
+
+### 安装
+
+```sh
+go get -u gorm.io/gorm
+go get -u gorm.io/driver/mysql
+```
+
+### 插入数据
+
+注意：
+
+1. 只需要创建数据库，无需手动创建表
+2. db.AutoMigrate方法可以自动根据传入的结构体在数据库中创建表
+3. 创建表的规则如下：
+   - 表名称为结构体名的复数形式（加s），并且首字母变为小写
+   - 字段名则是驼峰转下划线（如：CreatedAt->created_at）
+
+```go
+// golang快速入门程序
+package main
+
+import (
+	"fmt"
+	"log"
+
+	"gorm.io/driver/mysql"
+	"gorm.io/gorm"
+)
+
+type User struct {
+	gorm.Model
+	Username string
+	Password string
+}
+
+// 指定user表的表名
+// func (User) TableName() string { return "user_tbl" }
+
+func main() {
+	dsn := "root:cyj070723@(localhost:3306)/go_db?charset=utf8mb4"
+	d, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
+	if err != nil {
+		log.Fatal(err)
+	}
+	// Migrate（自动创建一张与结构体对应的表）
+	d.AutoMigrate(&User{})
+	// Create
+	res := d.Create(&User{Username: "李四", Password: "123456"})
+	row := res.RowsAffected
+	fmt.Println("影响行数：", row)
+}
+```
+
+**只插入指定字段**
+
+在调用db.Create方法之前，可以先调用Select方法，选择想要插入的是哪些字段。（系统提供的字段不会被影响【id,created_at,updated_at】，仍然会被正常插入）
+
+```go
+func createByGivingColumns() {
+	u := model.User{Username: "张三", Password: "345345"}
+	res := db.Select("Username").Create(&u)
+	row := res.RowsAffected
+	fmt.Println("影响行数:", row)
+}
+```
+
+**不插入指定字段**
+
+将Select方法换成Omit方法即可
+
+```go
+// 不插入指定字段
+func createAvoidingColumns() {
+	u := model.User{Username: "田七", Password: "121212"}
+	res := db.Omit("Password").Create(&u)
+	row := res.RowsAffected
+	fmt.Println("影响行数:", row)
+}
+```
+
+**批量插入数据**
+
+将一个实体类型的切片传入到db.Create即可批量创建数据
+
+这个方法会将切片中的所有数据整合成一句SQL进行插入
+
+```go
+// 批量插入数据
+func createMany() {
+	users := []model.User{
+		{Username: "张三", Password: "123456"},
+		{Username: "李四", Password: "123456"},
+		{Username: "王五", Password: "123456"},
+	}
+	rows := db.Create(&users)
+	fmt.Println(rows.RowsAffected)
+}
+```
+
+**指定批量插入时每批大小**
+
+```go
+// 按批次批量插入数据
+func createInBatches() {
+	users := []model.User{
+		{Username: "张三", Password: "123456"},
+		{Username: "李四", Password: "123456"},
+	}
+	// 按批次批量插入，每次插入1条
+	rows := db.CreateInBatches(&users, 1)
+	fmt.Println(rows.RowsAffected)
+}
+```
+
+**Create钩子函数**
+
+gorm在Create方法的生命周期中提供了4个钩子函数，分别是`BeforeCreate`、`BeforeSave`、`AfterCreate`、`AfterSave`
+
+只要让目标实体类型实现钩子函数即可被正确调用
+
+暂时不展开说明钩子函数，等到后边再细细研究~
+
+**使用map进行插入**
+
+gorm允许使用map插入数据，但是不建议这样用。
+
+使用map插入时，钩子函数和表关联都会失效。
+
+并且原本由gorm自动插入的字段也会失效
+
+插入方式：
+
+```go
+// 按照map进行插入
+func createByMap() {
+	rows := db.Model(&model.User{}).Create(map[string]interface{}{
+		"Username": "张三", "Password": "123456789",	
+	})
+	fmt.Println(rows.RowsAffected)
+}
+```
+
+### 查询数据
+
+#### 查询单条记录
+
+1. First、Take、Last
+   - First和Last会分别将数据库表按照主键升序、降序进行排序，然后取出第一条记录
+   - Take会直接取出在数据库中查询到的第一条记录
+   - 这三个方法，如果查询出错时会产生`ErrRecordNotFound`错误
+
+First: 
+
+```go
+func s1() {
+	var user model.User
+	res := dao.DB.First(&user)
+	fmt.Printf("user.ID: %v\n", user.ID)
+	fmt.Printf("res.RowsAffected: %v\n", res.RowsAffected)
+	fmt.Printf("res.Error: %v\n", res.Error)
+	fmt.Printf("user: %v\n", user)
+}
+```
+
+![image-20220517095304305](assets/image-20220517095304305.png)
+
+> 如果查询的时候报错：unsupported Scan, storing driver.Value type []uint8 into type *time.Time。
+>
+> 意思是数据库中存储的时间无法转换为golang中的time.Time类型，只需要在数据库连接字符串之后加上`parseTime=true`参数即可解决问题
+>
+> ```go
+> dsn := "root:cyj070723@tcp(localhost:3306)/go_db?charset=utf8mb4&parseTime=true"
+> ```
+
+Take、Last:
+
+```go
+// s3 Last
+func s3() {
+	var user model.User
+	res := dao.DB.Last(&user)
+	fmt.Printf("user.ID: %v\n", user.ID)
+	fmt.Printf("res.RowsAffected: %v\n", res.RowsAffected)
+	fmt.Printf("res.Error: %v\n", res.Error)
+	fmt.Printf("user: %v\n", user)
+}
+
+// s2 Take
+func s2() {
+	var user model.User
+	res := dao.DB.Take(&user)
+	fmt.Printf("user.ID: %v\n", user.ID)
+	fmt.Printf("res.RowsAffected: %v\n", res.RowsAffected)
+	fmt.Printf("res.Error: %v\n", res.Error)
+	fmt.Printf("user: %v\n", user)
+}
+```
+
+![image-20220517095739038](assets/image-20220517095739038.png)
+
+2. Find
+
+- 在调用Find方法之前，调用Limit(1)，也能实现查询单条记录的功能
+- Find方法查找不到数据时不会产生错误
+
+```go
+// s4 Find
+func s4() {
+	var user model.User
+	res := dao.DB.Limit(1).Find(&user)
+	fmt.Printf("user.ID: %v\n", user.ID)
+	fmt.Printf("res.RowsAffected: %v\n", res.RowsAffected)
+	fmt.Printf("res.Error: %v\n", res.Error)
+	fmt.Printf("user: %v\n", user)
+}
+```
+
+![image-20220517095953584](assets/image-20220517095953584.png)
+
+#### 用主键查询
+
+1. 在以上提到的四个方法中，都可以在方法的第二个参数中传入一个主键的值，值的类型可以是数字、字符串或切片
+2. 如果主键是字符串类型的，则需要预防sql注入问题，可在第二个参数传入占位符，再在第三个参数传入实际的值
+
+3. 可在传入的引用类型中，提前设置好主键的值，在查询时会自动按照主键进行查询
+
+```go
+// 在方法中传入主键的值
+func s1() {
+	var user model.User
+	res := dao.DB.First(&user, 4)
+	fmt.Printf("user.ID: %v\n", user.ID)
+	fmt.Printf("res.RowsAffected: %v\n", res.RowsAffected)
+	fmt.Printf("res.Error: %v\n", res.Error)
+	fmt.Printf("user: %v\n", user)
+}
+// 在方法中传入切片
+func s1() {
+	var user model.User
+	res := dao.DB.First(&user, []int{2, 4})
+	fmt.Printf("user.ID: %v\n", user.ID)
+	fmt.Printf("res.RowsAffected: %v\n", res.RowsAffected)
+	fmt.Printf("res.Error: %v\n", res.Error)
+	fmt.Printf("user: %v\n", user)
+}
+// 在方法中传入字符串，使用占位符防止SQL注入
+func s1() {
+	var user model.User
+	res := dao.DB.First(&user, "id = ?", "1")
+	fmt.Printf("user.ID: %v\n", user.ID)
+	fmt.Printf("res.RowsAffected: %v\n", res.RowsAffected)
+	fmt.Printf("res.Error: %v\n", res.Error)
+	fmt.Printf("user: %v\n", user)
+}
+// 在传入的对象中指定主键的值进行查询
+func s1() {
+	user := model.User{}
+	user.ID = 2
+	res := dao.DB.First(&user)
+	fmt.Printf("user.ID: %v\n", user.ID)
+	fmt.Printf("res.RowsAffected: %v\n", res.RowsAffected)
+	fmt.Printf("res.Error: %v\n", res.Error)
+	fmt.Printf("user: %v\n", user)
+}
+```
+
+![image-20220517100826925](assets/image-20220517100826925.png)
+
+![image-20220517101018375](assets/image-20220517101018375.png)
+
+![image-20220517101119356](assets/image-20220517101119356.png)
+
+![image-20220517101633573](assets/image-20220517101633573.png)
+
+#### 查询所有记录
+
+使用Find方法即可查询所有的记录
+
+```go
+func s5() {
+    // 传入一个切片
+	var users []model.User
+	res := dao.DB.Find(&users)
+	fmt.Printf("res.RowsAffected: %v\n", res.RowsAffected)
+	fmt.Printf("res.Error: %v\n", res.Error)
+	// 打印所有的记录
+	for _, user := range users {
+		fmt.Printf("user: %v\n", user)
+	}
+}
+```
+
+![image-20220517102311399](assets/image-20220517102311399.png)
+
+#### 条件查询
+
+1. 在Where方法中使用字符串条件查询
+
+```go
+// s6 使用字符串构造Where条件
+func s6() {
+	var users []model.User
+	// 1. =
+	fmt.Println("=")
+	dao.DB.Where("id = ?", 1).Find(&users)
+	for _, user := range users {
+		fmt.Printf("user: %v\n", user)
+	}
+	// 2. <>
+	fmt.Println("<>")
+	dao.DB.Where("id <> ?", 1).Find(&users)
+	for _, user := range users {
+		fmt.Printf("user: %v\n", user)		
+	}
+	// 3. IN
+	fmt.Println("IN")
+	dao.DB.Where("id IN ?", []int{1, 4}).Find(&users)
+	for _, user := range users {
+		fmt.Printf("user: %v\n", user)
+	}
+	// 4. LIKE
+	fmt.Println("LIKE")
+	dao.DB.Where("username LIKE ?", "%三%").Find(&users)
+	for _, user := range users {
+		fmt.Printf("user: %v\n", user)
+	}
+	// 5. AND
+	fmt.Println("AND")
+	dao.DB.Where("id = ? AND username = ?", 1, "张三").Find(&users)
+	for _, user := range users {
+		fmt.Printf("user: %v\n", user)
+	}
+	// 6. TIME
+	fmt.Println("TIME")
+	dao.DB.Where("created_at < ?", time.Now()).Find(&users)
+	for _, user := range users {
+		fmt.Printf("user: %v\n", user)
+	}
+	// 7. BETWEEN
+	fmt.Println("BETWEEN")
+	dao.DB.Where("id BETWEEN ? AND ?", 2, 5).Find(&users)
+	for _, user := range users {
+		fmt.Printf("user: %v\n", user)
+	}
+}
+```
+
+![image-20220517104201293](assets/image-20220517104201293.png)
+
+2. 在Where条件中使用Struct、Map进行查询
+
+```go
+// s7 Struct Map构造Where条件
+func s7() {
+	var users []model.User
+	// 1. struct
+	dao.DB.Where(&model.User{Username: "张三"}).Find(&users)
+	for _, user := range users {
+		fmt.Printf("user: %v\n", user)
+	}
+	// 2. map
+	dao.DB.Where(map[string]interface{}{"username": "李四", "id": 2}).Find(&users)
+	for _, user := range users {
+		fmt.Printf("user: %v\n", user)
+	}
+}
+```
+
+![image-20220517105351957](assets/image-20220517105351957.png)
+
+> 注意：使用Struct进行条件查询时，gorm会忽略掉结构体中“零值”的属性，如果要查询的条件中有属性包含了零值，请使用map查询
+
+3. 指定结构体中的特定字段构造条件
+
+在Where方法之后继续拼接字符串表示要构造条件的字段即可
+
+```go
+// s8 Struct Column
+func s8() {
+	var users []model.User
+	// 结构体中两个参数是不匹配的，加以验证
+	u := model.User{Username: "张三"}
+	u.ID = 2
+	dao.DB.Where(&u, "username").Find(&users)
+	for _, user := range users {
+		fmt.Printf("user: %v\n", user)
+	}
+}
+```
+
+![image-20220517110034284](assets/image-20220517110034284.png)
+
+4. 内联条件
+
+这种使用方式在最开始的时候就已经展示了，即在Find(First、Take、Last)方法的第二个参数开始拼接查询条件，详见**用主键查询**。
+
+5. Not条件
+
+Not条件即在查询之前使用Not方法指定条件为哪个字段不等于给定的值
+
+有以下四种用法：
+
+1. 字符串
+2. map
+3. struct
+4. slice（切片数组的值表示的是表中的主键）
+
+以下只演示字符串形式，其他形式类似：
+
+```go
+// s9 Not
+func s9() {
+	var users []model.User
+	dao.DB.Not("id IN ?", []int{1, 4}).Find(&users)
+	for _, user := range users {
+		fmt.Printf("user: %v\n", user)
+	}
+}
+```
+
+![image-20220517110827036](assets/image-20220517110827036.png)
+
+6. Or条件
+
+Or条件的使用方法与Not条件相似，不过需要跟在Where条件之后调用
+
+```go
+// s10 Or
+func s10() {
+	var users []model.User
+	u := model.User{Username: "张三"}
+	u.ID = 1
+	dao.DB.Where("id = ?", 2).Or(&u).Find(&users)
+	for _, user := range users {
+		fmt.Printf("user: %v\n", user)
+	}
+}
+```
+
+![image-20220517111247777](assets/image-20220517111247777.png)
+
+#### 查询特定字段
+
+可以使用Select方法指定要查询的字段（内置的字段不受影响）
+
+```go
+// s11 Select
+func s11() {
+	var user model.User
+	dao.DB.Select("id", "username").First(&user)
+	fmt.Printf("user: %v\n", user)
+}
+```
+
+![image-20220517111709707](assets/image-20220517111709707.png)
+
+#### Order指定排序
+
+可以根据查询结果将某个字段进行排序
+
+可以通过调用多次Order方法，指定分级排序（两个字段相同时的继续比较）
+
+```go
+// s12 Order
+func s12() {
+	var users []model.User
+	dao.DB.Order("id desc").Find(&users)
+	for _, user := range users {
+		fmt.Printf("user: %v\n", user)
+	}
+}
+```
+
+![image-20220517112415452](assets/image-20220517112415452.png)
+
+#### Limit & Offset
+
+Limit指定从返回结果中取出多少条数据
+
+Offset则指定偏移量，即从表中第几条数据开始取数据
+
+使用Limit、Offset实现简单的分页：
+
+```go
+// s13 Limit & Offset
+func s13() {
+	var users []model.User
+	// 从第一条记录开始（0是起始），取出1条数据
+	dao.DB.Offset(1).Limit(1).Find(&users)
+	for _, user := range users {
+		fmt.Printf("user: %v\n", user)
+	}
+}
+```
+
+![image-20220517112959660](assets/image-20220517112959660.png)
+
+#### Group & Having
+
+将查询记录进行分组并统计
+
+使用链式编程来查询
+
+1. 需要使用Model或者Table指定要查询哪张表
+2. 最后的查询结果需要重新定义一个类型来保存
+
+```go
+// s14 Group & Having
+func s14() {
+	// 统计结果结构体
+	type Result struct {
+		Date time.Time
+		Total int
+		Type string
+	}
+	results := []Result{}
+	// 1. 使用结构体模型（查询大于5岁的每个类型的宠物只数）
+	dao.DB.
+	Model(&model.Pet{}).
+	Select("count(*) as total, type").
+	Where("age > ?", 5).
+	Group("type").
+	Find(&results)
+	fmt.Printf("results: %v\n", results)
+	// 2. 指定表名（查询每个类型的宠物只数，保留总数大于3的记录）
+	dao.DB.
+	Table("pets").
+	Select("count(*) as total, type, created_at as date").
+	Group("type").
+	Having("total > ?", 3).
+	Scan(&results)
+	fmt.Printf("results: %v\n", results)
+}
+```
+
+![image-20220517145516643](assets/image-20220517145516643.png)
+
+#### Distinct
+
+去除查询结果中的重复记录
+
+```go
+// s15 Distinct
+func s15() {
+	// 查询所有的宠物类型
+	results := []string{}
+	dao.DB.Model(&model.Pet{}).Distinct("type").Find(&results)
+	for _, result := range results {
+		fmt.Printf("result: %v\n", result)
+	}
+}
+```
+
+![image-20220517150015062](assets/image-20220517150015062.png)
+
+#### 手写SQL
+
+使用Raw方法即可手动编写SQL语句进行查询
+
+```go
+// s16 Raw
+func s16() {
+	// 查询所有年龄小于7的宠物
+	pets := []model.Pet{}
+	dao.DB.Raw("select * from pets where age < ?", 7).Scan(&pets)
+	for _, pet := range pets {
+		fmt.Printf("pet: %v\n", pet)
+	}
+}
+```
+
+![image-20220517150710328](assets/image-20220517150710328.png)
+
+### 更新数据
+
+#### 保存所有字段
+
+使用Save方法会将结构体中的所有字段都重新保存一次，即使是零值
+
+```go
+// u1 Save
+func u1() {
+	// 查询年龄为3的宠物，并将其名字改为狗狗
+	pet := model.Pet{}
+	res := dao.DB.Where("age = ?", 3).First(&pet)
+	if res.Error != nil {
+		log.Fatal(res.Error)
+	}
+	fmt.Printf("pet: %v\n", pet)
+	pet.Name = "狗狗"
+	dao.DB.Save(&pet)
+}
+```
+
+#### 更新单个列
+
+可以使用Update方法单独更新表中的单个列
+
+1. 必须指定Where条件，否则会报`ErrMissingWhereClause`错误
+2. 如果传入的Model指针的主键是有赋值的，也会被加入到最终的Where语句中
+
+```go
+// u2 Update
+func u2() {
+	// 将年龄为4的宠物的名字修改为狗蛋
+	dao.DB.Model(&model.Pet{}).Where("age = ?", 4).Update("name", "狗蛋")
+}
+```
+
+#### 更新多列
+
+使用Updates方法可以一次更新多个列，方法参数可以传入struct或者map，用法与查询相似。
+
+如果使用的是struct参数，GORM会忽略掉结构体当中的零值，如果需要将零值列为有效更新字段，就要使用Select指定，或者直接使用map进行更新。
+
+```go
+// u3 Updates
+func u3() {
+	// 将id为7的宠物的年龄改为20,名字改为蛋蛋
+	pet := model.Pet{}
+	pet.ID = 7
+	dao.DB.Model(&pet).Updates(&model.Pet{Age: 20, Name: "蛋蛋"})
+}
+```
+
+### 删除数据
+
+#### 删除一条记录
+
+删除的时候必须要指定Where条件，或在Model中赋值要删除的主键，否则GORM会进行批量删除操作
+
+#### 根据主键进行删除
+
+1. 内联条件
+2. 批量删除
+
+#### 查找软删除的记录
+
+如果表中添加了deleted_at字段，则gorm不会真正删除数据，而是将当前时间设置到该字段中，并且普通查询时将无法再查询到记录
+
+要查询已经被删除的记录，可以使用Unscope方法
+
+```go
+// d3 Unscoped
+func d3() {
+	// 查询所有已经被删除的宠物
+	pets := []model.Pet{}
+	dao.DB.Unscoped().Where("deleted_at is not null").Find(&pets)
+	for _, pet := range pets {
+		fmt.Printf("pet: %v\n", pet)
+	}
+}
+```
+
+![image-20220517154741276](assets/image-20220517154741276.png)
+
+如果想要永久删除被软删除的记录，则在Unscope方法下再调用Delete即可
+
+### 实体关联
+
+#### 一对一（Belongs To）
+
+1. struct定义方法
+
+在需要关联另一个实体的结构体中定义相应类型的属性，GORM默认会使用关联实体的id作为外键进行关联。
+
+为了能够通过id进行关联，需要在当前结构体中额外定义一个ID
+
+例子：Student和Class（一个Student只属于一个Class）
+
+```go
+type Student struct {
+	gorm.Model
+	Name string
+	Class Class
+	ClassID uint
+}
+type Class struct {
+	gorm.Model
+	Name string
+}
+```
+
+2. 插入Student的同时关联Class，如果给定的Class没有为id属性赋值，则会在Class表中新建一条记录
+
+```go
+class1 := model.Class{}
+class1.ID = 2
+// 插入一个学生，并关联班级
+student1 := model.Student{Name: "李四", Class: class1}
+res := dao.DB.Create(&student1)
+fmt.Printf("res.RowsAffected: %v\n", res.RowsAffected)
+```
+
+3. 查询Student，同时将其关联的Class封装到记录中
+
+使用Association方法指定关联的字段
+
+```go
+// 查询学生
+students := []model.Student{}
+dao.DB.Find(&students)
+for _, student := range students {
+    // 查找学生关联的班级信息
+    dao.DB.Model(&student).Association("Class").Find(&student.Class)
+    fmt.Printf("student: %v\n", student)
+}
+```
+
+![image-20220517173012455](assets/image-20220517173012455.png)
+
+#### 一对一（Has One）
+
+Has One与Belongs To的区别是，两个互为Has One的实体之间都是一一匹配的，而Belongs To中，被关联的实体（如上例中的Class）是可以拥有多个关联实体的（Student），也即多对一关系。
+
+两者结构体定义的区别是，Has One关联是通过在被关联实体中维护关联实体的ID的。
+
+```go
+// 用户实体
+type User struct {
+	gorm.Model
+	Username string
+	Password string
+	CreditCard CreditCard
+}
+// 身份证实体，在这里维护与User的一对一关系（与Belongs To的区别）
+type CreditCard struct {
+	gorm.Model
+	Number string
+	UserID uint
+}
+```
+
+```go
+// 自动创建表
+dao.DB.AutoMigrate(&model.User{}, &model.CreditCard{})
+// 插入一个用户，同时存入身份证号
+cc := model.CreditCard{Number: "440583223909043902923"}
+u := model.User{Username: "憨憨", Password: "123456", CreditCard: cc}
+res := dao.DB.Create(&u)
+fmt.Printf("res.RowsAffected: %v\n", res.RowsAffected)
+
+// 查询用户，并封装信息
+u1 := model.User{}
+dao.DB.Where("username = ?", "憨憨").First(&u1)
+dao.DB.Model(&u1).Association("CreditCard").Find(&u1.CreditCard)
+fmt.Printf("u1: %v\n", u1)
+```
+
+![image-20220517190310581](assets/image-20220517190310581.png)
+
+![image-20220517190342434](assets/image-20220517190342434.png)
+
+![image-20220517214946590](assets/image-20220517214946590.png)
+
+#### 一对多（Has Many）
+
+Has Many的使用方式和Has One很类似，在上例中，由User实体维护单个CreditCard属性。如果在Has Many的情况下，只需要将维护的属性类型换成切片类型即可。
+
+示例：一个User，可以有多个Computer
+
+```go
+// 用户实体
+type User struct {
+	gorm.Model
+	Username string
+	Password string
+	// Has One
+	CreditCard CreditCard
+	// Has Many
+	Computers []Computer
+}
+type Computer struct {
+	gorm.Model
+	Name string
+	UserID uint
+}
+```
+
+```go
+// 自动创建表
+dao.DB.AutoMigrate(&model.User{}, &model.Computer{})
+// 插入一个用户，同时插入它拥有的电脑
+computers := []model.Computer{
+    {Name: "MacBook Pro"},
+    {Name: "MateBook D14"},
+    {Name: "MacBookAir"},
+}
+u := model.User{Username: "君君", Password: "111111", Computers: computers}
+res := dao.DB.Create(&u)
+fmt.Printf("res.RowsAffected: %v\n", res.RowsAffected)
+
+// 查询用户，并封装电脑数据
+u1 := model.User{}
+dao.DB.Where("username = ?", "君君").First(&u1)
+dao.DB.Model(&u1).Association("Computers").Find(&u1.Computers)
+fmt.Printf("u1: %v\n", u1)
+```
+
+![image-20220517191544237](assets/image-20220517191544237.png)
+
+插入在数据库表中的效果与Has One相似
+
+![image-20220517215259297](assets/image-20220517215259297.png)
+
+#### Many2Many（多对多）
+
+使用多对多时，需要在两个模型中分别定义对方的切片类型，并且使用标签注明连接表的名称。如下：
+
+```go
+type Book struct {
+	gorm.Model
+	Name string `gorm:"index:,unique"`
+	Price float64
+	Types []BookType `gorm:"many2many:book_type_rels"`
+}
+
+type BookType struct {
+	gorm.Model
+	Name string `gorm:"index:,unique"`
+	Books []Book `gorm:"many2many:book_type_rels"`
+}
+```
+
+使用db.AutoMigrate自动创建出表，数据库会创建出三张表：
+
+![image-20220517221753941](assets/image-20220517221753941.png)
+
+插入图书类型数据：
+
+```go
+// 插入类型
+types := []model.BookType{
+    {Name: "数学"},
+    {Name: "物理"},
+    {Name: "计算机"},
+    {Name: "英语"},
+}
+res := dao.DB.Create(&types)
+fmt.Printf("res.RowsAffected: %v\n", res.RowsAffected)
+```
+
+![image-20220517221921989](assets/image-20220517221921989.png)
+
+插入图书，同时维护图书和图书类型的关系表：
+
+> 在给图书设置类型值的时候，图书类型必须要有主键值，否则GORM会认为这个类型是一个新的类型，会在类型表中插入一条新的记录
+
+```go
+// 插入图书
+types := []model.BookType{}
+mathType := model.BookType{Name: "数学"}
+dao.DB.First(&mathType)
+types = append(types, mathType)
+book := model.Book{Name: "高等数学1", Price: 37.99, Types: types}
+res := dao.DB.Create(&book)
+fmt.Printf("res.RowsAffected: %v\n", res.RowsAffected)
+```
+
+关系表自动维护两者关系：
+
+![image-20220517222133751](assets/image-20220517222133751.png)
+
+查询图书，同时查出其类型：
+
+```go
+// 查找图书
+book := model.Book{Name: "高等数学1"}
+dao.DB.First(&book)
+dao.DB.Model(&book).Association("Types").Find(&book.Types)
+fmt.Printf("book: %v\n", book)
+```
+
+![image-20220517222440809](assets/image-20220517222440809.png)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
