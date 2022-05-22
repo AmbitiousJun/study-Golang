@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<head>
+    <meta charset="utf-8">
+    <title>WebSocket Test</title>
+</head>
+<body>
+    <div class="container">
+        <input id="msg-input" type="text" placeholder="输入要发送的信息...">
+        <button onclick="send()">发送</button>
+        <h2 class="msg"></div>
+    </div>
+
+    <script>
+        // 窗口加载完毕就建立websocket连接
+        var sock
+        window.onload = () => {
+            const url = "ws://localhost:1234"
+            const msgTag = document.getElementsByClassName('msg')[0]
+            sock = new WebSocket(url)
+            sock.onopen = () => {
+                alert('成功与服务器建立连接...')
+            }
+            sock.onclose = e => {
+                alert('与服务器的连接已关闭...', e.code)
+            }
+            sock.onerror = e => {
+                console.log('发生错误', e);
+            }
+            sock.onmessage = e => {
+                msgTag.innerHTML = e.data
+            }
+        }
+        // 发送消息
+        const send = () => {
+            if (sock === undefined) {
+                return
+            }
+            const val = document.getElementById('msg-input').value
+            sock.send(val)
+        }
+    </script>
+</body>

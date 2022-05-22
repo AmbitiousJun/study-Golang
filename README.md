@@ -4282,6 +4282,326 @@ fmt.Printf("u: %v\n", u)
 
 ![image-20220522104210911](assets/image-20220522104210911.png)
 
+## socket
+
+### Tcp Socket实例
+
+server：
+
+```go
+// 通过TCP监听的服务端
+package main
+
+import (
+	"fmt"
+	"net"
+	"os"
+	"strconv"
+	"time"
+)
+
+func check(err error) {
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err.Error())
+		os.Exit(1)
+	}
+}
+
+// 将当前系统时间响应给客户端
+// 客户端发送"timestamp"，返回时间戳
+// 客户端发送"normal"，返回正常的字符串时间
+func handleClient(conn net.Conn) {
+	// 设置接收消息的超时时间为两分钟
+	conn.SetReadDeadline(time.Now().Add(time.Minute * 2))
+	defer conn.Close()
+	// 存放客户端发送过来的数据
+	cache := make([]byte, 128)
+	// 持续监听
+	for {
+		readLen, err := conn.Read(cache)
+		check(err)
+		if readLen == 0 {
+			// 客户端主动关闭了连接
+			break
+		}
+		msg := string(cache[:readLen])
+		fmt.Printf("msg: %v\n", msg)
+		var timeStr string
+		if msg == "timestamp" {
+			timeStr = strconv.FormatInt(time.Now().Unix(), 10)
+		} else {
+			timeStr = time.Now().String()
+		}
+		conn.Write([]byte(timeStr))
+		// 清空缓存
+		cache = make([]byte, 128)
+	}
+}
+
+func main() {
+	// 监听本地的1200端口
+	service := ":1200"
+	// 解析地址信息
+	addr, err := net.ResolveTCPAddr("tcp4", service)
+	check(err)
+	// 开启服务监听
+	l, err := net.ListenTCP("tcp4", addr)
+	check(err)
+	fmt.Println("开始监听...")
+	// 持续监听
+	for {
+		// 接收客户端的连接请求
+		conn, err := l.Accept()
+		check(err)
+		fmt.Println("监听到一个连接...")
+		go handleClient(conn)
+	}
+}
+```
+
+client：
+
+```go
+// 通过TCP 连接的客户端
+package main
+
+import (
+	"fmt"
+	"net"
+	"os"
+)
+
+func check(err error) {
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err.Error())
+		os.Exit(1)
+	}
+}
+
+func main() {
+	service := ":1200"
+	// 转化为tcp地址
+	addr, err := net.ResolveTCPAddr("tcp4", service)
+	check(err)
+	// 建立连接
+	conn, err := net.DialTCP("tcp4", nil, addr)
+	check(err)
+	defer conn.Close()
+	fmt.Println("成功连接服务器...")
+
+	fmt.Println("发送timestamp请求...")
+	conn.Write([]byte("timestamp"))
+	cache := make([]byte, 128)
+	_, err = conn.Read(cache)
+	check(err)
+	fmt.Printf("timestamp: %s\n", string(cache))
+
+	fmt.Println("发送normal请求...")
+	conn.Write([]byte("normal"))
+	cache = make([]byte, 128)
+	_, err = conn.Read(cache)
+	check(err)
+	fmt.Printf("normal: %s\n", string(cache))
+}
+```
+
+运行结果：
+
+![image-20220522121047748](assets/image-20220522121047748.png)
+
+![image-20220522121105284](assets/image-20220522121105284.png)
+
+### Udp Socket 实例
+
+Udp Socket与Tcp的区别在于，客户端与服务端的通信是不建立连接的，即不保证传输数据的可靠性，但是传输速度比Tcp快。
+
+server：
+
+```go
+// 通过UDP监听的服务端
+package main
+
+import (
+	"log"
+	"net"
+	"os"
+)
+
+func check(err error) {
+	if err != nil {
+		log.Println(err)
+		os.Exit(1)
+	}
+}
+
+func main() {
+	// 监听1200端口
+	service := ":1200"
+	// 解析成udp地址
+	addr, err := net.ResolveUDPAddr("udp4", service)
+	check(err)
+	// 开启监听
+	l, err := net.ListenUDP("udp4", addr)
+	check(err)
+	for {
+		cache := make([]byte, 128)
+		_, rAddr, err := l.ReadFromUDP(cache)
+		check(err)
+		log.Println("监听到一个udp连接...")
+		_, err = l.WriteToUDP(cache, rAddr)
+		check(err)
+	}
+}
+```
+
+client：
+
+```go
+// 通过UDP连接的客户端
+package main
+
+import (
+	"fmt"
+	"log"
+	"net"
+	"os"
+)
+
+func check(err error) {
+	if err != nil {
+		log.Println(err)
+		os.Exit(1)
+	}
+}
+
+func main() {
+	// 连接到本地的1200端口
+	service := ":1200"
+	// 解析成udp地址
+	addr, err := net.ResolveUDPAddr("udp4", service)
+	check(err)
+	// 取得udp连接
+	conn, err := net.DialUDP("udp4", nil, addr)
+	check(err)
+	_, err = conn.Write([]byte("Hello World!!!!!"))
+	check(err)
+	cache := make([]byte, 128)
+	_, err = conn.Read(cache)
+	check(err)
+	fmt.Println(string(cache))
+}
+```
+
+运行结果：
+
+![image-20220522151843243](assets/image-20220522151843243.png)
+
+![image-20220522151854380](assets/image-20220522151854380.png)
+
+### WebSocket
+
+使用WebSocket之前需要安装一个由官方维护的websocket库：
+
+```sh
+go get golang.org/x/net/websocket
+```
+
+go server code：
+
+```go
+// websocket server端
+package main
+
+import (
+	"fmt"
+	"log"
+	"net/http"
+
+	"golang.org/x/net/websocket"
+)
+
+func Echo(ws *websocket.Conn) {
+	fmt.Println("监听到客户端连接...")
+	for {
+		var msg string
+		// 接收客户端的消息
+		if err := websocket.Message.Receive(ws, &msg); err != nil {
+			log.Println("fail to recive msg")
+			break
+		}
+		log.Println("received msg: ", msg)
+		if err := websocket.Message.Send(ws, "Server Response to msg:"+msg); err != nil {
+			log.Println("fail to send response")
+			break
+		}
+	}
+}
+
+func main() {
+	// 设置处理函数
+	http.Handle("/", websocket.Handler(Echo))
+	// 监听1234端口
+	if err := http.ListenAndServe(":1234", nil); err != nil {
+		log.Fatal(err)
+	}
+}
+```
+
+js client code：
+
+```html
+<!DOCTYPE html>
+<head>
+    <meta charset="utf-8">
+    <title>WebSocket Test</title>
+</head>
+<body>
+    <div class="container">
+        <input id="msg-input" type="text" placeholder="输入要发送的信息...">
+        <button onclick="send()">发送</button>
+        <h2 class="msg"></div>
+    </div>
+
+    <script>
+        // 窗口加载完毕就建立websocket连接
+        var sock
+        window.onload = () => {
+            const url = "ws://localhost:1234"
+            const msgTag = document.getElementsByClassName('msg')[0]
+            sock = new WebSocket(url)
+            sock.onopen = () => {
+                alert('成功与服务器建立连接...')
+            }
+            sock.onclose = e => {
+                alert('与服务器的连接已关闭...', e.code)
+            }
+            sock.onerror = e => {
+                console.log('发生错误', e);
+            }
+            sock.onmessage = e => {
+                msgTag.innerHTML = e.data
+            }
+        }
+        // 发送消息
+        const send = () => {
+            if (sock === undefined) {
+                return
+            }
+            const val = document.getElementById('msg-input').value
+            sock.send(val)
+        }
+    </script>
+</body>
+```
+
+运行结果：
+
+![image-20220522155801113](assets/image-20220522155801113.png)
+
+![image-20220522155818608](assets/image-20220522155818608.png)
+
+
+
 
 
 
