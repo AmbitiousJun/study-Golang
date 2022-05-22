@@ -3489,6 +3489,8 @@ func s15() {
 
 使用Raw方法即可手动编写SQL语句进行查询
 
+使用Exec方法可编写SQL进行增删改
+
 ```go
 // s16 Raw
 func s16() {
@@ -3804,6 +3806,485 @@ fmt.Printf("book: %v\n", book)
 ```
 
 ![image-20220517222440809](assets/image-20220517222440809.png)
+
+## go.uuid包
+
+go官方没有提供生成uuid的库，可以通过引入go.uuid包来生成uuid
+
+**安装**
+
+```sh
+go get github.com/satori/go.uuid
+```
+
+**生成uuid**
+
+```go
+import (
+	"fmt"
+
+	uuid "github.com/satori/go.uuid"
+)
+func main() {
+    u := uuid.NewV4()
+	fmt.Printf("u: %v\n", u)
+}
+```
+
+![image-20220521114657727](assets/image-20220521114657727.png)
+
+
+
+## context包
+
+context包可用于同步并发执行的goroutine，让goroutine的执行能够被人工控制。
+
+一般情况下，需要调用`context.Background()`或`context.TODO()`方法（两者作用相同，通常选前者）来创建一个根context，并在启动goroutine的时候传入context，不同的goroutine之间可以通过context传递信息。同时，context在传递过程中又可以继续衍生出新的context。
+
+通过根context衍生子context的一些函数：
+
+```go
+// 创建一个携带一对键值对的context
+func WithValue(parent Context, key, val any) Context
+// 创建一个有超时时间的context
+func WithTimeout(parent Context, timeout time.Duration) (Context, CancelFunc)
+// 创建一个可以手动终止的context
+func WithCancel(parent Context) (ctx Context, cancel CancelFunc)
+```
+
+### WithValue
+
+创建context的时候携带一个key-value，只要是同一个context的goroutine就可以共享这个值。
+
+示例：
+
+在开发的时候如果需要进行日志追踪，就要知道当前goroutine怎样才能追踪到调用者，这时候可以创建一个WithValue类型的context，存入一个“trace_id”，只要是同一个context的goroutine，拿出来的值必定是相同的。可以以此来判断哪些goroutine是相关的
+
+```go
+// WithValue的使用
+package main
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	uuid "github.com/satori/go.uuid"
+)
+
+const KEY = "trace_id"
+
+func routine2(ctx context.Context) {
+	printLog(ctx.Value(KEY).(uuid.UUID), "routine2输出了一条日志")
+}
+
+func routine1(ctx context.Context) {
+	printLog(ctx.Value(KEY).(uuid.UUID), "routine1输出了一条日志")
+	go routine2(ctx)
+}
+
+// printLog 输出日志到控制台上
+func printLog(traceId uuid.UUID, text string) {
+	fmt.Printf("%s|info|trace_id=%v|%s\n", time.Now().Format("2006-01-02 15:04:05"), traceId, text)
+}
+
+func main() {
+	// 根context
+	ctx := context.Background()
+	// 衍生withValue
+	valueCtx := context.WithValue(ctx, KEY, uuid.NewV4())
+	go routine1(valueCtx)
+	time.Sleep(time.Second * 5)
+}	
+```
+
+![image-20220521115959746](assets/image-20220521115959746.png)
+
+### WithTimeout
+
+使用WithTimeout可以对goroutine进行超时控制，调用这个函数的时候，除了会返回一个子context对象，还会返回一个取消函数`cancelFunc`，当时间到达时，goroutine中的context.Done()方法就会返回一个已经关闭的通道，表示程序不需要再执行下去了。
+
+```go
+// WithTimeout的使用
+package main
+
+import (
+	"context"
+	"fmt"
+	"time"
+)
+
+func deal(ctx context.Context) {
+	for i := 0; i <= 10; i++ {
+		time.Sleep(time.Second)
+		select {
+		case <-ctx.Done():
+			fmt.Println("程序终止")
+			return
+		default:
+			fmt.Println("current i:", i)
+		}
+	}
+}
+
+func main() {
+	ctx := context.Background()
+	ctxTimeout, cancel := context.WithTimeout(ctx, time.Second*3)
+	defer cancel()
+	deal(ctxTimeout)
+}
+```
+
+![image-20220521152806664](assets/image-20220521152806664.png)
+
+### WithCancel
+
+有的时候为了处理一个复杂的需求，需要开多个goroutine去工作，那么如果想要在主线程终止掉已开启的goroutine，就可以使用WithCancel进行控制
+
+```go
+// WithCancel的使用
+package main
+
+import (
+	"context"
+	"fmt"
+	"time"
+)
+
+func speak(ctx context.Context) {
+	// 无限循环，每秒输出一行提示信息
+	for range time.Tick(time.Second) {
+		select {
+		case <-ctx.Done():
+			fmt.Println("已闭嘴")
+			return
+		default:
+			fmt.Println("正在讲话...")
+		}
+	}
+}
+
+func main() {
+	ctx := context.Background()
+	ctxCancel, cancel := context.WithCancel(ctx)
+	// 启动goroutine
+	go speak(ctxCancel)
+	// 主线程等待10秒之后，主动终止goroutine的执行
+	time.Sleep(time.Second * 10)
+	fmt.Println("主线程让goroutine闭嘴")
+	cancel()
+	time.Sleep(time.Second)
+}
+```
+
+![image-20220521153856686](assets/image-20220521153856686.png)
+
+
+
+## go-redis
+
+### 官方文档
+
+https://redis.uptrace.dev/
+
+### 安装
+
+```sh
+go get github.com/go-redis/redis/v8
+```
+
+### 快速入门程序
+
+1. 使用redis.NewClient函数，创建一个连接redis的客户端rdb
+2. 使用rdb.Set方法设置一个string类型的值到数据库中
+   - 最后一个参数是过期时间，传入0表示这个值永久有效
+3. 使用rdb.Get方法从数据库中获取一个string类型的值，如果不存在这个值，返回的err的类型是redis.Nil。
+
+```go
+// go-redis入门程序
+package main
+
+import (
+	"context"
+	"fmt"
+	"log"
+
+	"github.com/go-redis/redis/v8"
+)
+
+var ctx = context.Background()
+
+func main() {
+	// 初始化redis客户端
+	rdb := redis.NewClient(&redis.Options{
+		Addr:     "localhost:6379",
+		Password: "",
+		// 使用默认的数据库
+		DB: 0,
+	})
+	// 设置一个string类型的值
+	err := rdb.Set(ctx, "hello", "world", 0).Err()
+	if err != nil {
+		log.Fatal(err)
+	}
+	// 取出一个存在的string类型的值
+	res, err := rdb.Get(ctx, "hello").Result()
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println("key: hello, val:", res)
+	// 取出一个不存在的string类型的值
+	res, err = rdb.Get(ctx, "hello1").Result()
+	if err == redis.Nil {
+		log.Fatal("不存在key:", "hello1")
+	} else if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println("key: hello1, val:", res)
+}
+```
+
+### 基本使用
+
+#### string
+
+对string类型的操作，在快速入门中已经展示了，这里再简单写个小demo
+
+```go
+func main() {
+	rdb, err := initDB()
+	if err != nil {
+		log.Fatal(err)
+	}
+	ctx := context.Background()
+	// 设置值，过期时间为10分钟
+	err = rdb.Set(ctx, "test:name", "张三", time.Minute*10).Err()
+	if err != nil {
+		log.Fatal(err)
+	}
+	// 获取值
+	res, err := rdb.Get(ctx, "test:name").Result()
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Printf("res: %v\n", res)
+}
+```
+
+![image-20220521161812174](assets/image-20220521161812174.png)
+
+#### hash
+
+使用rdb.HSet / rdb.HGet方法可以操作hash类型的值
+
+存储hash的方式：
+
+1. 在HSet的参数中，除了第一个字符串参数填入hash key，之后的参数是一个可变参数，通过按顺序填写key, value
+
+2. 在hash key之后，传递一个map集合
+3. 在hash key之后，传递一个切片，其中按顺序两两组成key，value
+
+```go
+func main() {
+	rdb, err := initDB()
+	if err != nil {
+		log.Fatal(err)
+	}
+	ctx := context.Background()
+	// 设置Hash方式1
+	err = rdb.HSet(ctx, "test:hash", "key1", "value1", "key2", "value2").Err()
+	if err != nil {
+		log.Fatal(err)
+	}
+	// 设置Hash方式2
+	err = rdb.HSet(ctx, "test:hash", map[string]string{"key3": "value3", "key4": "value4"}).Err()
+	if err != nil {
+		log.Fatal(err)
+	}
+	// 获取Hash中某个field的值
+	res, err := rdb.HGet(ctx, "test:hash", "key1").Result()
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Printf("res: %v\n", res)
+	// 获取Hash中的所有值
+	res1, err := rdb.HGetAll(ctx, "test:hash").Result()
+	if err != nil {
+		log.Fatal(err)
+	}
+	for k, v := range res1 {
+		fmt.Printf("key: %s, value: %s\n", k, v)
+	}
+}
+```
+
+#### list
+
+rdb.RPush：往list的右侧添加数据
+
+rdb.LPush：往list的左侧添加数据
+
+rdb.LPop：从list的左侧弹出数据
+
+rdb.RPop：从list的右侧弹出数据
+
+```go
+func main() {
+	rdb, err := initDB()
+	if err != nil {
+		log.Fatal(err)
+	}
+	ctx := context.Background()
+	// 往list的右侧插入数据
+	rdb.RPush(ctx, "test:list", 1, 2, 3, 4, 5)
+	// 从list的左侧插入数据
+	rdb.LPush(ctx, "test:list", 11, 22, 33, 44, 55)
+	length := rdb.LLen(ctx, "test:list").Val()
+	for i := int64(0); i < length / 2; i++ {
+		fmt.Printf("rpop: %v\n", rdb.RPop(ctx, "test:list").Val())
+		fmt.Printf("lpop: %v\n", rdb.LPop(ctx, "test:list").Val())
+	}
+}
+```
+
+![image-20220521164857457](assets/image-20220521164857457.png)
+
+#### set
+
+rdb.SAdd：往集合中添加值
+
+rdb.SIsMember：判断某个元素是否存在于集合中
+
+```go
+func main() {
+	rdb, err := initDB()
+	if err != nil {
+		log.Fatal(err)
+	}
+	ctx := context.Background()
+	// 往set中添加值
+	err = rdb.SAdd(ctx, "test:set", 1, 2, 3, 4, 5, 6, 7).Err()
+	if err != nil {
+		log.Fatal(err)
+	}
+	// 查看set中是否存在某个值
+	fmt.Printf("is number 3 in set: %v\n", rdb.SIsMember(ctx, "test:set", 3).Val())
+	fmt.Printf("is number 8 in set: %v\n", rdb.SIsMember(ctx, "test:set", 8).Val())
+}
+```
+
+![image-20220521165606763](assets/image-20220521165606763.png)
+
+#### zset
+
+zset可以在set的基础上，给每个元素设置一个分数值，分数越高，在集合中排的就越靠前
+
+- 使用redis.Z类型表示zset中的一个成员
+
+```go
+func main() {
+	rdb, err := initDB()
+	if err != nil {
+		log.Fatal(err)
+	}
+	items := []*redis.Z{
+		{Score: 50, Member: "C++"},
+		{Score: 75, Member: "Java"},
+		{Score: 25, Member: "PHP"},
+		{Score: 100, Member: "Golang"},
+		{Score: 0, Member: "Python"},
+	}
+	ctx := context.Background()
+	// 设置值
+	err = rdb.ZAdd(ctx, "test:zset", items...).Err()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// 取出集合中按分数从小到大排的前三位
+	res, err := rdb.ZRange(ctx, "test:zset", 0, 2).Result()
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Printf("res: %v\n", res)
+
+	// 取出集合中按分数从大到小排的前三位
+	res, err = rdb.ZRevRange(ctx, "test:zset", 0, 2).Result()
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Printf("res: %v\n", res)
+
+	// 取出集合中的所有元素（按分数从小到大排）
+	res, err = rdb.ZRange(ctx, "test:zset", 0, -1).Result()
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Printf("res: %v\n", res)
+}
+```
+
+![image-20220521171630521](assets/image-20220521171630521.png)
+
+### 结构体与JSON之间的相互转化
+
+示例中使用到的结构体：
+
+```go
+type User struct {
+	ID       int    `json:"id"`
+	Username string `json:"username"`
+	Age      int    `json:"age"`
+	Roles    []Role `json:"roles"`
+}
+
+type Role struct {
+	ID   int    `json:"id"`
+	Name string `json:"name"`
+}
+```
+
+#### struct -> json
+
+```go
+func Marshal(v any) ([]byte, error)
+```
+
+```go
+roles := []Role{
+    {1, "ADMIN"},
+    {2, "MERCHANT"},
+}
+b, err := json.Marshal(&User{ID: 1, Username: "张三", Age: 18, Roles: roles})
+if err != nil {
+    log.Fatal(err)
+}
+fmt.Printf("string(b): %v\n", string(b))
+```
+
+![image-20220522104109321](assets/image-20220522104109321.png)
+
+#### json -> struct
+
+```go
+func Unmarshal(data []byte, v any) error
+```
+
+```go
+jsonStr := `{"id":1,"username":"张三","age":18,"roles":[{"id":1,"name":"ADMIN"},{"id":2,"name":"MERCHANT"}]}`
+u := User{}
+err = json.Unmarshal([]byte(jsonStr), &u)
+if err != nil {
+    log.Fatal(err)
+}
+fmt.Printf("u: %v\n", u)
+```
+
+![image-20220522104210911](assets/image-20220522104210911.png)
+
+
+
+
 
 
 
